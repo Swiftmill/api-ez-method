@@ -1,11 +1,23 @@
 // route.js — Proxy d'authentification Supabase
 // Gère login, signup, logout, et récupération de profil.
-// Les credentials Supabase ne quittent jamais ce serveur.
+// Protégé contre les erreurs de build Vercel.
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
+
+// ── INITIALISATION SÉCURISÉE ──────────────────────────────────────────────
+// On utilise des "placeholders" pour éviter que Vercel ne plante au moment 
+// de la compilation (build) si les variables ne sont pas encore chargées.
+const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || 'placeholder_key';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request) {
+  // Vérification stricte UNIQUEMENT lors de l'exécution d'une vraie requête
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return NextResponse.json({ status: 'error', message: 'Variables Supabase manquantes sur le serveur' }, { status: 500 });
+  }
+
   try {
     const body = await request.json();
     const { action } = body;
@@ -72,7 +84,7 @@ export async function POST(request) {
       const { session_token } = body;
       if (session_token) {
         // Invalider le token côté Supabase
-        const userSupabase = await getAuthenticatedClient(session_token);
+        const userSupabase = getAuthenticatedClient(session_token);
         await userSupabase.auth.signOut();
       }
       return NextResponse.json({ status: 'success', message: 'Déconnecté' });
@@ -143,44 +155,12 @@ export async function POST(request) {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function verifyToken(sessionToken) {
-  if (!sessionToken) return null;
-  try {
-    const { data, error } = await supabase.auth.getUser(sessionToken);
-    if (error || !data.user) return null;
-    return data.user;
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedClient(sessionToken) {
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${sessionToken}` } },
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
-}
-
-async function fetchProfile(userId, sessionToken) {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('tier, is_banned, expires_at, settings, custom_max_uploads')
-      .eq('id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    return data || { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
-  } catch {
-    return { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
-  }
-}
-
 // Endpoint pour incrémenter le compteur d'uploads (appelé après un patch réussi)
 export async function PATCH(request) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return NextResponse.json({ status: 'error', message: 'Variables Supabase manquantes' }, { status: 500 });
+  }
+
   try {
     const body = await request.json();
     const { session_token } = body;
@@ -220,5 +200,40 @@ export async function PATCH(request) {
   } catch (error) {
     console.error('[/api/auth PATCH] Erreur:', error);
     return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function verifyToken(sessionToken) {
+  if (!sessionToken) return null;
+  try {
+    const { data, error } = await supabase.auth.getUser(sessionToken);
+    if (error || !data.user) return null;
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthenticatedClient(sessionToken) {
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${sessionToken}` } },
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+}
+
+async function fetchProfile(userId, sessionToken) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('tier, is_banned, expires_at, settings, custom_max_uploads')
+      .eq('id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
+  } catch {
+    return { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
   }
 }
