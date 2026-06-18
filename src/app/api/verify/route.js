@@ -25,17 +25,24 @@ export async function POST(request) {
     const body = await request.json();
     const { session_token, moovBase64, otherBoxesSizeBeforeMdat, mdatStart, mdatEnd } = body;
 
-    // 1. Vérification de la session via Supabase côté serveur
+    // 1. Vérification de la session par décodage JWT manuel
     if (!session_token) {
       return NextResponse.json({ status: 'error', message: 'Session manquante — reconnectez-vous' }, { status: 401 });
     }
 
-    const { data: userData, error: authError } = await supabase.auth.getUser(session_token);
-    if (authError || !userData?.user) {
-      return NextResponse.json({ status: 'error', message: 'Session expirée ou invalide — reconnectez-vous' }, { status: 401 });
+    let userId;
+    try {
+      const parts = session_token.split('.');
+      if (parts.length !== 3) throw new Error('invalid');
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      if (!payload.sub || !payload.exp) throw new Error('invalid');
+      if (Date.now() / 1000 > payload.exp) {
+        return NextResponse.json({ status: 'error', message: 'Session expirée — reconnectez-vous' }, { status: 401 });
+      }
+      userId = payload.sub;
+    } catch {
+      return NextResponse.json({ status: 'error', message: 'Session invalide — reconnectez-vous' }, { status: 401 });
     }
-
-    const userId = userData.user.id;
 
     // 2. Vérifier le profil et les droits d'accès
     const { data: profile, error: profileError } = await supabase

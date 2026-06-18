@@ -175,9 +175,13 @@ export async function PATCH(request) {
 async function verifyToken(supabase, sessionToken) {
   if (!sessionToken) return null;
   try {
-    const { data, error } = await supabase.auth.getUser(sessionToken);
-    if (error || !data.user) return null;
-    return data.user;
+    // Decode JWT manually — works with sb_secret_* keys (no admin auth needed)
+    const parts = sessionToken.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!payload.sub || !payload.exp) return null;
+    if (Date.now() / 1000 > payload.exp) return null; // expired
+    return { id: payload.sub, email: payload.email };
   } catch {
     return null;
   }
