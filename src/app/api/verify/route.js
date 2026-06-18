@@ -9,7 +9,8 @@ function getSupabase() {
   return createClient(url, key, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
+      detectSessionInUrl: false,
     }
   });
 }
