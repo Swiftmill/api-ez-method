@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { patchMoov } from './mp4-patcher';
 import { createClient } from '@supabase/supabase-js';
 
+export const runtime = 'nodejs';
+
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_ANON_KEY;

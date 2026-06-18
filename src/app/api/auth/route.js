@@ -4,6 +4,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const runtime = 'nodejs';
+
 // ── FONCTION SÉCURISÉE ──────────────────────────────────────────────────────
 // Cette fonction ne s'exécute JAMAIS pendant le build.
 // Elle est appelée uniquement lors d'une vraie requête.
