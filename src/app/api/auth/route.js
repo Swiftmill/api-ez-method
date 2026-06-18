@@ -183,8 +183,15 @@ async function fetchProfile(supabase, userId) {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data || { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
+    
+    const isDev = process.env.NODE_ENV === 'development';
+    const profile = data || { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
+    if (isDev) {
+      profile.tier = 'vip';
+    }
+    return profile;
   } catch {
-    return { tier: 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
+    const isDev = process.env.NODE_ENV === 'development';
+    return { tier: isDev ? 'vip' : 'free', is_banned: false, expires_at: null, settings: {}, custom_max_uploads: null };
   }
 }
